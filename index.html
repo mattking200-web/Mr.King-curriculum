@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a1628" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>MrKing Curriculum</title>
+  <!-- Tesseract.js for on-device OCR — Writing module -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════
+       DASHBOARD VIEW
+  ══════════════════════════════════════════ -->
+  <div id="view-dashboard" class="view active">
+
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="crown-icon">♛</span>
+        <div>
+          <h1 class="app-title">MrKing Curriculum</h1>
+          <p class="app-subtitle">Mastery-Based Learning</p>
+        </div>
+      </div>
+      <button class="btn-reset" id="btn-reset-progress" title="Reset all progress">↺</button>
+    </header>
+
+    <!-- Overall mastery progress bar -->
+    <div class="mastery-banner">
+      <div class="mastery-label">Overall Mastery</div>
+      <div class="mastery-bar-track">
+        <div class="mastery-bar-fill" id="overall-mastery-bar"></div>
+      </div>
+      <div class="mastery-percent" id="overall-mastery-percent">0%</div>
+    </div>
+
+    <!-- Vertical learning path -->
+    <section class="learning-path">
+      <h2 class="path-heading">Your Learning Path</h2>
+
+      <!-- ── LEVEL 1: Letter Sounds (Reading) ── -->
+      <div class="level-card" id="card-level-1" data-level="1">
+        <div class="level-badge">1</div>
+        <div class="level-info">
+          <div class="level-title">Letter Sounds</div>
+          <div class="level-type"><span class="tag tag-reading">📖 Reading</span></div>
+          <div class="level-progress-row">
+            <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-level-1"></div></div>
+            <span class="mini-percent" id="pct-level-1">0%</span>
+          </div>
+        </div>
+        <div class="level-status" id="status-level-1"><span class="status-icon">🔓</span></div>
+      </div>
+
+      <div class="path-connector" id="connector-1-2"></div>
+
+      <!-- ── LEVEL 2: CVC Words (Reading) ── -->
+      <div class="level-card locked" id="card-level-2" data-level="2">
+        <div class="level-badge">2</div>
+        <div class="level-info">
+          <div class="level-title">CVC Words</div>
+          <div class="level-type"><span class="tag tag-reading">📖 Reading</span></div>
+          <div class="level-progress-row">
+            <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-level-2"></div></div>
+            <span class="mini-percent" id="pct-level-2">0%</span>
+          </div>
+        </div>
+        <div class="level-status" id="status-level-2"><span class="status-icon">🔒</span></div>
+      </div>
+
+      <div class="path-connector" id="connector-2-3"></div>
+
+      <!-- ── LEVEL 3: Simple Sentences (Writing) ── -->
+      <div class="level-card locked" id="card-level-3" data-level="3">
+        <div class="level-badge">3</div>
+        <div class="level-info">
+          <div class="level-title">Simple Sentences</div>
+          <div class="level-type"><span class="tag tag-writing">✏️ Writing</span></div>
+          <div class="level-progress-row">
+            <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-level-3"></div></div>
+            <span class="mini-percent" id="pct-level-3">0%</span>
+          </div>
+        </div>
+        <div class="level-status" id="status-level-3"><span class="status-icon">🔒</span></div>
+      </div>
+
+    </section>
+
+    <footer class="app-footer"><p>Progress saved locally on this device ·  MrKing Curriculum</p></footer>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════
+       ASSESSMENT VIEW
+  ══════════════════════════════════════════ -->
+  <div id="view-assessment" class="view">
+
+    <header class="assess-header">
+      <button class="btn-back" id="btn-back">← Back</button>
+      <div class="assess-meta">
+        <span id="assess-level-tag" class="tag">Level ?</span>
+        <span id="assess-type-tag" class="tag">?</span>
+      </div>
+    </header>
+
+    <div class="assess-body">
+
+      <!-- Target word / sentence card -->
+      <div class="target-card">
+        <div class="target-label">Your Target</div>
+        <div class="target-word" id="target-word-display">—</div>
+        <div class="target-hint" id="target-hint"></div>
+      </div>
+
+      <!-- Progress dots — one per question in the level -->
+      <div class="question-dots" id="question-dots"></div>
+
+      <!-- READING panel: Web Speech API -->
+      <div id="panel-reading" class="assess-panel hidden">
+        <button class="btn-action btn-mic" id="btn-mic">
+          <span class="btn-icon">🎤</span>
+          <span class="btn-label">Hold to Read Aloud</span>
+        </button>
+        <div class="transcript-box" id="transcript-box"><em>Listening…</em></div>
+      </div>
+
+      <!-- WRITING panel: Tesseract.js OCR -->
+      <div id="panel-writing" class="assess-panel hidden">
+        <!-- Hidden file/camera input -->
+        <input type="file" id="camera-input" accept="image/*" capture="environment" />
+        <button class="btn-action btn-camera" id="btn-camera">
+          <span class="btn-icon">📷</span>
+          <span class="btn-label">Snap Your Writing</span>
+        </button>
+        <div class="ocr-preview" id="ocr-preview"></div>
+        <div class="transcript-box" id="ocr-result-box"><em>Photo result will appear here…</em></div>
+      </div>
+
+      <!-- Feedback overlay (correct / try again) -->
+      <div class="feedback-overlay hidden" id="feedback-overlay">
+        <div class="feedback-card" id="feedback-card">
+          <div class="feedback-icon" id="feedback-icon">✅</div>
+          <div class="feedback-msg" id="feedback-msg">Correct!</div>
+          <button class="btn-next" id="btn-next">Next →</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════
+       LEVEL COMPLETE VIEW
+  ══════════════════════════════════════════ -->
+  <div id="view-complete" class="view">
+    <div class="complete-body">
+      <div class="trophy">🏆</div>
+      <h2 class="complete-title">Level Complete!</h2>
+      <p class="complete-subtitle" id="complete-subtitle">You've mastered this level!</p>
+      <div class="complete-stars">⭐⭐⭐</div>
+      <button class="btn-action btn-home" id="btn-home">Back to Learning Path</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
