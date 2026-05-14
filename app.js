@@ -295,9 +295,67 @@ document.getElementById('btn-next').addEventListener('click', () => {
 
 /* ──────────────────────────────────────────────────────────────
    ⑦  READING MODULE — Web Speech API
+   Three improvements:
+     A) Toggle (single click to start/stop — no hold required)
+     B) continuous = false → auto-stops after the student speaks
+     C) Fuzzy matching for short letter sounds (e.g. target "a")
    ────────────────────────────────────────────────────────────── */
-let recognition     = null;
-let isListening     = false;
+
+/* ── C) PHONETIC ALIASES ────────────────────────────────────────
+   Maps a target sound to words the browser commonly mishears it as.
+   Add entries here whenever you find a new false-positive pattern.
+   The values are ACCEPTED alternatives (still mark correct) vs
+   common confusions — see fuzzyMatch() for how each is used.
+   ────────────────────────────────────────────────────────────── */
+const PHONETIC_ALIASES = {
+  // ── Vowel letter sounds ──
+  'a': ['ay', 'aye', 'eh'],       // "ay" / "aye" are valid letter-sound renderings
+  'e': ['ee', 'ea'],
+  'i': ['eye', 'aye', 'ai'],
+  'o': ['oh', 'ow', 'owe'],
+  'u': ['oo', 'you', 'yoo', 'yew'],
+  // ── Add more entries below as needed, e.g.:
+  // 'b': ['be', 'bee'],
+  // 'c': ['see', 'sea'],
+};
+
+/* ── C) FUZZY MATCH FUNCTION ────────────────────────────────────
+   Returns: { match: true }                   — accept as correct
+            { match: false, shortSound: true } — show short-sound nudge
+            { match: false, shortSound: false} — show generic wrong msg
+   ────────────────────────────────────────────────────────────── */
+function fuzzyMatch(transcript, target) {
+  const t = transcript.trim().toLowerCase();
+  const tgt = target.trim().toLowerCase();
+
+  // 1. Exact match
+  if (t === tgt) return { match: true };
+
+  // 2. Transcript contains the target as a whole word
+  //    e.g. target="cat", transcript="a cat" → still correct
+  const wordBoundaryRE = new RegExp(`\\b${tgt}\\b`, 'i');
+  if (wordBoundaryRE.test(t)) return { match: true };
+
+  // 3. Accepted phonetic alias → mark correct
+  //    e.g. target="a", transcript="ay" → correct
+  const aliases = PHONETIC_ALIASES[tgt] || [];
+  if (aliases.some(alias => t === alias || t.includes(alias))) {
+    return { match: true };
+  }
+
+  // 4. Short target (single character = a letter sound).
+  //    Browser heard *something* but it wasn't the right sound.
+  //    Give a specific coaching nudge instead of a generic error.
+  if (tgt.length === 1) {
+    return { match: false, shortSound: true };
+  }
+
+  // 5. Longer word — generic wrong message
+  return { match: false, shortSound: false };
+}
+
+let recognition  = null;
+let isListening  = false;
 
 function initSpeech() {
   const SpeechRecognition =
@@ -306,46 +364,75 @@ function initSpeech() {
     console.warn('Web Speech API not supported in this browser.');
     return;
   }
+
   recognition = new SpeechRecognition();
-  recognition.lang        = 'en-US';
-  recognition.continuous  = false;
+  recognition.lang           = 'en-US';
+  recognition.continuous     = false;  // ── B) auto-stops after student speaks
   recognition.interimResults = false;
 
   recognition.onresult = (e) => {
     const transcript = e.results[0][0].transcript.trim().toLowerCase();
     document.getElementById('transcript-box').textContent = `"${transcript}"`;
 
-    // ── Mastery check: compare to target (case-insensitive, trimmed) ──
     const target = pendingTargets[currentIndex].word.trim().toLowerCase();
-    if (transcript === target) {
+
+    // ── C) Run fuzzy match ──
+    const result = fuzzyMatch(transcript, target);
+
+    if (result.match) {
       markCorrect();
+    } else if (result.shortSound) {
+      // Special nudge for single letter-sounds the browser mangled
+      showFeedback(false,
+        `I heard something else — try saying just the sound again, clearly! 🔊`
+      );
     } else {
+      // Generic wrong message for multi-character words
       showFeedback(false, `I heard: "${transcript}". Try again!`);
     }
   };
 
   recognition.onerror = (e) => {
-    document.getElementById('transcript-box').textContent = `Error: ${e.error}`;
+    // 'no-speech' is normal (student was silent); don't alarm them
+    if (e.error === 'no-speech') {
+      document.getElementById('transcript-box').innerHTML =
+        '<em>Nothing heard — tap the mic and try again.</em>';
+    } else {
+      document.getElementById('transcript-box').textContent = `Error: ${e.error}`;
+    }
     setMicIdle();
   };
 
+  // ── B) Browser fires onend automatically when continuous=false ──
   recognition.onend = () => { setMicIdle(); };
+}
+
+/* ── A) TOGGLE: single click starts OR stops ────────────────── */
+function toggleSpeech() {
+  if (isListening) {
+    // Second click → manual cancel
+    recognition.stop();   // triggers onend → setMicIdle
+  } else {
+    startSpeech();
+  }
 }
 
 function startSpeech() {
   if (!recognition) { initSpeech(); }
   if (!recognition) {
-    alert('Speech recognition is not available in this browser. Try Chrome on Android or desktop.');
+    alert('Speech recognition is not available in this browser.\nTry Chrome on Android or desktop.');
     return;
   }
   isListening = true;
   recognition.start();
-  document.getElementById('btn-mic').classList.add('active');
-  document.getElementById('btn-mic').querySelector('.btn-label').textContent = 'Listening… (release)';
+  const btn = document.getElementById('btn-mic');
+  btn.classList.add('active');
+  btn.querySelector('.btn-label').textContent = 'Listening… (tap to cancel)';
   document.getElementById('transcript-box').innerHTML = '<em>Listening now…</em>';
 }
 
 function stopSpeech() {
+  // Called externally (e.g. on back-navigation) to ensure clean state
   if (recognition && isListening) {
     recognition.stop();
   }
@@ -357,17 +444,13 @@ function setMicIdle() {
   const btn = document.getElementById('btn-mic');
   if (btn) {
     btn.classList.remove('active');
-    btn.querySelector('.btn-label').textContent = 'Hold to Read Aloud';
+    btn.querySelector('.btn-label').textContent = 'Tap to Read Aloud';  // updated label
   }
 }
 
-// Touch & mouse events for mic (hold to record)
+// ── A) Single click listener replaces all the hold events ──
 const btnMic = document.getElementById('btn-mic');
-btnMic.addEventListener('mousedown',  startSpeech);
-btnMic.addEventListener('touchstart', (e) => { e.preventDefault(); startSpeech(); }, { passive: false });
-btnMic.addEventListener('mouseup',    stopSpeech);
-btnMic.addEventListener('mouseleave', stopSpeech);
-btnMic.addEventListener('touchend',   stopSpeech);
+btnMic.addEventListener('click', toggleSpeech);
 
 
 /* ──────────────────────────────────────────────────────────────
