@@ -354,101 +354,157 @@ function fuzzyMatch(transcript, target) {
   return { match: false, shortSound: false };
 }
 
-let recognition  = null;
-let isListening  = false;
+let isListening      = false;
+let listenTimer      = null;   // safety auto-stop timeout
+let resultReceived   = false;  // guards against onend firing after a result
 
-function initSpeech() {
+const LISTEN_TIMEOUT_MS = 8000; // auto-stop after 8 s of silence
+
+/* ── PRE-WARM MICROPHONE PERMISSION ────────────────────────────
+   Calling getUserMedia on load means the browser permission dialog
+   appears BEFORE the student taps the mic, so recognition.start()
+   never races against a permission prompt.
+   ────────────────────────────────────────────────────────────── */
+async function prewarmMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Immediately release the tracks — we only needed the permission grant
+    stream.getTracks().forEach(t => t.stop());
+  } catch (err) {
+    console.warn('Mic permission denied or unavailable:', err.message);
+  }
+}
+
+/* ── BUILD A FRESH RECOGNITION INSTANCE EVERY TIME ─────────────
+   Reusing a stopped SpeechRecognition object causes a silent
+   InvalidStateError on the second .start() call in many browsers.
+   Creating a new instance each session avoids all state issues.
+   ────────────────────────────────────────────────────────────── */
+function buildRecognition() {
   const SpeechRecognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    console.warn('Web Speech API not supported in this browser.');
-    return;
-  }
+  if (!SpeechRecognition) return null;
 
-  recognition = new SpeechRecognition();
-  recognition.lang           = 'en-US';
-  recognition.continuous     = false;  // ── B) auto-stops after student speaks
-  recognition.interimResults = false;
+  const r = new SpeechRecognition();
+  r.lang             = 'en-US';
+  r.continuous       = true;   // stay open — we stop manually once a result arrives
+                               // (continuous=false kills short sounds like "a" almost instantly)
+  r.interimResults   = false;  // only process final results, not half-heard fragments
+  r.maxAlternatives  = 3;      // ask for up to 3 guesses; we test all of them
 
-  recognition.onresult = (e) => {
-    const transcript = e.results[0][0].transcript.trim().toLowerCase();
-    document.getElementById('transcript-box').textContent = `"${transcript}"`;
+  r.onresult = (e) => {
+    if (resultReceived) return;   // ignore any late-firing events after we've scored
+    resultReceived = true;
+    clearTimeout(listenTimer);
+    r.stop();                     // got a result — stop listening immediately
+
+    // Collect all alternative transcripts the browser returned
+    const alts = Array.from(e.results[e.results.length - 1])
+      .map(alt => alt.transcript.trim().toLowerCase());
 
     const target = pendingTargets[currentIndex].word.trim().toLowerCase();
+    document.getElementById('transcript-box').textContent = `"${alts[0]}"`;
 
-    // ── C) Run fuzzy match ──
-    const result = fuzzyMatch(transcript, target);
+    // Test every alternative against fuzzyMatch — accept if ANY passes
+    const anyMatch = alts.some(alt => fuzzyMatch(alt, target).match);
 
-    if (result.match) {
+    if (anyMatch) {
       markCorrect();
-    } else if (result.shortSound) {
-      // Special nudge for single letter-sounds the browser mangled
-      showFeedback(false,
-        `I heard something else — try saying just the sound again, clearly! 🔊`
-      );
     } else {
-      // Generic wrong message for multi-character words
-      showFeedback(false, `I heard: "${transcript}". Try again!`);
+      // Use the top alternative for the feedback message
+      const topResult = fuzzyMatch(alts[0], target);
+      if (topResult.shortSound) {
+        showFeedback(false,
+          `I heard something else — try saying just the sound again, clearly! 🔊`
+        );
+      } else {
+        showFeedback(false, `I heard: "${alts[0]}". Try again!`);
+      }
     }
   };
 
-  recognition.onerror = (e) => {
-    // 'no-speech' is normal (student was silent); don't alarm them
+  r.onerror = (e) => {
+    clearTimeout(listenTimer);
     if (e.error === 'no-speech') {
+      // Student was silent for the full timeout — gentle nudge
       document.getElementById('transcript-box').innerHTML =
-        '<em>Nothing heard — tap the mic and try again.</em>';
+        '<em>Nothing heard — tap the mic and speak clearly.</em>';
+    } else if (e.error === 'not-allowed') {
+      document.getElementById('transcript-box').textContent =
+        '⚠️ Microphone blocked. Please allow mic access in your browser settings.';
     } else {
-      document.getElementById('transcript-box').textContent = `Error: ${e.error}`;
+      document.getElementById('transcript-box').textContent = `Mic error: ${e.error}`;
     }
     setMicIdle();
   };
 
-  // ── B) Browser fires onend automatically when continuous=false ──
-  recognition.onend = () => { setMicIdle(); };
+  r.onend = () => {
+    // Only reset UI if we haven't already handled a result
+    if (!resultReceived) setMicIdle();
+  };
+
+  return r;
 }
 
-/* ── A) TOGGLE: single click starts OR stops ────────────────── */
+/* ── TOGGLE: single tap to start, tap again to cancel ──────── */
 function toggleSpeech() {
   if (isListening) {
-    // Second click → manual cancel
-    recognition.stop();   // triggers onend → setMicIdle
+    cancelSpeech();
   } else {
     startSpeech();
   }
 }
 
 function startSpeech() {
-  if (!recognition) { initSpeech(); }
-  if (!recognition) {
-    alert('Speech recognition is not available in this browser.\nTry Chrome on Android or desktop.');
+  const r = buildRecognition();
+  if (!r) {
+    alert('Speech recognition is not available.\nPlease use Chrome on Android or a Chromium desktop browser.');
     return;
   }
-  isListening = true;
-  recognition.start();
+
+  resultReceived = false;
+  isListening    = true;
+
+  // Safety net: auto-stop if student never speaks
+  listenTimer = setTimeout(() => {
+    r.stop();
+    document.getElementById('transcript-box').innerHTML =
+      '<em>Time's up — tap the mic and try again.</em>';
+    setMicIdle();
+  }, LISTEN_TIMEOUT_MS);
+
+  r.start();
+
   const btn = document.getElementById('btn-mic');
   btn.classList.add('active');
   btn.querySelector('.btn-label').textContent = 'Listening… (tap to cancel)';
-  document.getElementById('transcript-box').innerHTML = '<em>Listening now…</em>';
+  document.getElementById('transcript-box').innerHTML = '<em>Listening — say the word now!</em>';
+}
+
+function cancelSpeech() {
+  clearTimeout(listenTimer);
+  // buildRecognition creates a new object each time, so we can't reference
+  // the old instance — setMicIdle cleans up the UI; onend will fire on its own.
+  setMicIdle();
 }
 
 function stopSpeech() {
-  // Called externally (e.g. on back-navigation) to ensure clean state
-  if (recognition && isListening) {
-    recognition.stop();
-  }
+  // Called by back-button navigation to ensure clean state
+  clearTimeout(listenTimer);
   setMicIdle();
 }
 
 function setMicIdle() {
   isListening = false;
+  clearTimeout(listenTimer);
   const btn = document.getElementById('btn-mic');
   if (btn) {
     btn.classList.remove('active');
-    btn.querySelector('.btn-label').textContent = 'Tap to Read Aloud';  // updated label
+    btn.querySelector('.btn-label').textContent = 'Tap to Read Aloud';
   }
 }
 
-// ── A) Single click listener replaces all the hold events ──
+// Single click toggles the mic — no holding required
 const btnMic = document.getElementById('btn-mic');
 btnMic.addEventListener('click', toggleSpeech);
 
@@ -546,7 +602,7 @@ document.getElementById('btn-reset-progress').addEventListener('click', () => {
    ⑩  INIT
    ────────────────────────────────────────────────────────────── */
 (function init() {
-  initSpeech();
+  prewarmMic();          // request mic permission early, before first tap
   renderDashboard();
   showView('dashboard');
 })();
