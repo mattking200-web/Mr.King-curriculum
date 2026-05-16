@@ -79,12 +79,17 @@ const LETTER_DATA = {
    NAME_ALIASES:  what the browser hears when student says a letter name
    ────────────────────────────────────────────────────────────── */
 const SOUND_ALIASES = {
-  // Short vowel sounds — browser often hears these for phoneme attempts
-  'a': ['ah', 'uh', 'aa', 'ha', 'huh'],
-  'e': ['eh', 'ef', 'ed', 'et', 'ep'],
-  'i': ['ih', 'it', 'is', 'in', 'if'],
-  'o': ['aw', 'on', 'ot', 'op'],
-  'u': ['uh', 'up', 'us', 'un', 'ugh'],
+  // Short vowel sounds — covers what Chrome actually returns for isolated phonemes.
+  // Add more entries as you discover new transcription patterns.
+  'a': ['ah', 'uh', 'aa', 'ha', 'huh', 'are', 'ar'],
+  'e': [
+    'eh', 'ef', 'ed', 'et', 'em', 'en', 'eg',  // direct phoneme renderings
+    'the', 'ugh', 'egg', 'end', 'else', 'ever', // Chrome often returns these for /ĕ/
+    'uh',                                         // schwa confusion
+  ],
+  'i': ['ih', 'it', 'is', 'in', 'if', 'ill', 'ink', 'him', 'hit'],
+  'o': ['aw', 'on', 'ot', 'op', 'odd', 'off', 'ox', 'oh'],
+  'u': ['uh', 'up', 'us', 'un', 'ugh', 'under'],
   // Consonant sounds — add as you expand the curriculum
   'b': ['buh', 'bah', 'ba', 'bub'],
   'c': ['kuh', 'kah', 'ka', 'cuh'],
@@ -426,6 +431,17 @@ function fuzzyMatch(transcript, target, levelType) {
   var aliases = (levelType === 'sounds') ? (SOUND_ALIASES[tgt] || []) : (NAME_ALIASES[tgt] || []);
   for (var i = 0; i < aliases.length; i++) {
     if (t === aliases[i] || t.indexOf(aliases[i]) !== -1) return true;
+  }
+
+  // 4. Sounds-level only: "starts-with" check.
+  //    If the browser returns any word beginning with the target letter,
+  //    the student produced the right opening phoneme (e.g. "egg" for /e/).
+  //    Split on spaces so we test each word in the transcript individually.
+  if (levelType === 'sounds' && tgt.length === 1) {
+    var words = t.split(/\s+/);
+    for (var w = 0; w < words.length; w++) {
+      if (words[w].charAt(0) === tgt) return true;
+    }
   }
 
   return false;
