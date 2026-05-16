@@ -547,3 +547,94 @@ html, body {
   50%      { box-shadow: 0 6px 20px rgba(183,28,28,0.5), 0 0 0 16px rgba(183,28,28,0); }
 }
 .btn-mic.active { animation: mic-pulse 1.2s ease infinite; }
+
+/* ═══════════════════════════════════════════════
+   TEACHING FEEDBACK OVERLAY
+   Full-screen overlay with giant letter + tip + TTS
+   ═══════════════════════════════════════════════ */
+.teaching-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-deep);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 32px 24px;
+  text-align: center;
+  animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.teaching-overlay.hidden { display: none; }
+
+.teaching-eyebrow {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* 150px bold letter — the centrepiece of the teaching moment */
+.teaching-big-letter {
+  font-size: 150px;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--accent-green);
+  text-shadow: 0 0 60px rgba(0, 230, 118, 0.35);
+  margin-bottom: 24px;
+  letter-spacing: -4px;
+}
+
+.teaching-tip {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  line-height: 1.55;
+  max-width: 380px;
+  margin-bottom: 36px;
+}
+
+/* "Listen to Me" TTS button */
+.btn-listen {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto 16px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #1a237e, #283593);
+  color: #fff;
+  border: 2px solid rgba(100, 130, 255, 0.35);
+  border-radius: var(--radius);
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 6px 20px rgba(26, 35, 126, 0.45);
+}
+.btn-listen:hover { transform: scale(1.03); }
+.btn-listen:active { transform: scale(0.98); }
+
+/* "Try Again" button */
+.btn-try-again {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-try-again:hover { background: rgba(255,255,255,0.1); color: var(--text-primary); }
+
+/* Sounds tag (new level type) */
+.tag-sounds {
+  background: rgba(179, 136, 255, 0.18);
+  color: #b388ff;
+  border: 1px solid rgba(179, 136, 255, 0.35);
+}

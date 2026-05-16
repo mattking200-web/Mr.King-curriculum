@@ -4,17 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0a1628" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>MrKing Curriculum</title>
-  <!-- Tesseract.js for on-device OCR — Writing module -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- ═══════════════════════════════════════
-       DASHBOARD VIEW
-  ══════════════════════════════════════════ -->
+  <!-- ═══════════════════════ DASHBOARD ═══════════════════════ -->
   <div id="view-dashboard" class="view active">
 
     <header class="app-header">
@@ -28,7 +24,6 @@
       <button class="btn-reset" id="btn-reset-progress" title="Reset all progress">↺</button>
     </header>
 
-    <!-- Overall mastery progress bar -->
     <div class="mastery-banner">
       <div class="mastery-label">Overall Mastery</div>
       <div class="mastery-bar-track">
@@ -37,16 +32,15 @@
       <div class="mastery-percent" id="overall-mastery-percent">0%</div>
     </div>
 
-    <!-- Vertical learning path -->
     <section class="learning-path">
       <h2 class="path-heading">Your Learning Path</h2>
 
-      <!-- ── LEVEL 1: Letter Sounds (Reading) ── -->
+      <!-- LEVEL 1: Letter Sounds (phonemes) -->
       <div class="level-card" id="card-level-1" data-level="1">
         <div class="level-badge">1</div>
         <div class="level-info">
           <div class="level-title">Letter Sounds</div>
-          <div class="level-type"><span class="tag tag-reading">📖 Reading</span></div>
+          <div class="level-type"><span class="tag tag-sounds">🔉 Sounds</span></div>
           <div class="level-progress-row">
             <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-level-1"></div></div>
             <span class="mini-percent" id="pct-level-1">0%</span>
@@ -54,14 +48,13 @@
         </div>
         <div class="level-status" id="status-level-1"><span class="status-icon">🔓</span></div>
       </div>
-
       <div class="path-connector" id="connector-1-2"></div>
 
-      <!-- ── LEVEL 2: CVC Words (Reading) ── -->
+      <!-- LEVEL 2: Letter Names -->
       <div class="level-card locked" id="card-level-2" data-level="2">
         <div class="level-badge">2</div>
         <div class="level-info">
-          <div class="level-title">CVC Words</div>
+          <div class="level-title">Letter Names</div>
           <div class="level-type"><span class="tag tag-reading">📖 Reading</span></div>
           <div class="level-progress-row">
             <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-level-2"></div></div>
@@ -70,15 +63,14 @@
         </div>
         <div class="level-status" id="status-level-2"><span class="status-icon">🔒</span></div>
       </div>
-
       <div class="path-connector" id="connector-2-3"></div>
 
-      <!-- ── LEVEL 3: Simple Sentences (Writing) ── -->
+      <!-- LEVEL 3: CVC Words -->
       <div class="level-card locked" id="card-level-3" data-level="3">
         <div class="level-badge">3</div>
         <div class="level-info">
-          <div class="level-title">Simple Sentences</div>
-          <div class="level-type"><span class="tag tag-writing">✏️ Writing</span></div>
+          <div class="level-title">CVC Words</div>
+          <div class="level-type"><span class="tag tag-reading">📖 Reading</span></div>
           <div class="level-progress-row">
             <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-level-3"></div></div>
             <span class="mini-percent" id="pct-level-3">0%</span>
@@ -86,16 +78,27 @@
         </div>
         <div class="level-status" id="status-level-3"><span class="status-icon">🔒</span></div>
       </div>
+      <div class="path-connector" id="connector-3-4"></div>
+
+      <!-- LEVEL 4: Simple Sentences -->
+      <div class="level-card locked" id="card-level-4" data-level="4">
+        <div class="level-badge">4</div>
+        <div class="level-info">
+          <div class="level-title">Simple Sentences</div>
+          <div class="level-type"><span class="tag tag-writing">✏️ Writing</span></div>
+          <div class="level-progress-row">
+            <div class="mini-bar-track"><div class="mini-bar-fill" id="bar-level-4"></div></div>
+            <span class="mini-percent" id="pct-level-4">0%</span>
+          </div>
+        </div>
+        <div class="level-status" id="status-level-4"><span class="status-icon">🔒</span></div>
+      </div>
 
     </section>
-
-    <footer class="app-footer"><p>Progress saved locally on this device ·  MrKing Curriculum</p></footer>
+    <footer class="app-footer"><p>Progress saved locally · MrKing Curriculum</p></footer>
   </div>
 
-
-  <!-- ═══════════════════════════════════════
-       ASSESSMENT VIEW
-  ══════════════════════════════════════════ -->
+  <!-- ═══════════════════════ ASSESSMENT ═══════════════════════ -->
   <div id="view-assessment" class="view">
 
     <header class="assess-header">
@@ -108,42 +111,39 @@
 
     <div class="assess-body">
 
-      <!-- Target word / sentence card -->
       <div class="target-card">
         <div class="target-label">Your Target</div>
         <div class="target-word" id="target-word-display">—</div>
         <div class="target-hint" id="target-hint"></div>
       </div>
 
-      <!-- Progress dots — one per question in the level -->
       <div class="question-dots" id="question-dots"></div>
 
-      <!-- READING panel: Web Speech API -->
+      <!-- Reading / Sounds / Names panel -->
       <div id="panel-reading" class="assess-panel hidden">
         <button class="btn-action btn-mic" id="btn-mic">
           <span class="btn-icon">🎤</span>
           <span class="btn-label">Tap to Read Aloud</span>
         </button>
-        <div class="transcript-box" id="transcript-box"><em>Listening…</em></div>
+        <div class="transcript-box" id="transcript-box"><em>Tap the mic and speak.</em></div>
       </div>
 
-      <!-- WRITING panel: Tesseract.js OCR -->
+      <!-- Writing panel -->
       <div id="panel-writing" class="assess-panel hidden">
-        <!-- Hidden file/camera input -->
         <input type="file" id="camera-input" accept="image/*" capture="environment" />
         <button class="btn-action btn-camera" id="btn-camera">
           <span class="btn-icon">📷</span>
           <span class="btn-label">Snap Your Writing</span>
         </button>
         <div class="ocr-preview" id="ocr-preview"></div>
-        <div class="transcript-box" id="ocr-result-box"><em>Photo result will appear here…</em></div>
+        <div class="transcript-box" id="ocr-result-box"><em>Photo result will appear here.</em></div>
       </div>
 
-      <!-- Feedback overlay (correct / try again) -->
+      <!-- Simple feedback overlay (correct answers + non-letter wrong answers) -->
       <div class="feedback-overlay hidden" id="feedback-overlay">
         <div class="feedback-card" id="feedback-card">
           <div class="feedback-icon" id="feedback-icon">✅</div>
-          <div class="feedback-msg" id="feedback-msg">Correct!</div>
+          <div class="feedback-msg"  id="feedback-msg">Correct!</div>
           <button class="btn-next" id="btn-next">Next →</button>
         </div>
       </div>
@@ -151,10 +151,32 @@
     </div>
   </div>
 
+  <!-- ═══════════════════ TEACHING FEEDBACK OVERLAY ═══════════════════
+       Shown when a student gets a LETTER wrong (sounds or names level).
+       Replaces the simple "wrong" card with a full teaching moment.
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="teaching-overlay hidden" id="teaching-overlay">
+    <div class="teaching-eyebrow">The answer is:</div>
 
-  <!-- ═══════════════════════════════════════
-       LEVEL COMPLETE VIEW
-  ══════════════════════════════════════════ -->
+    <!-- Giant letter display — 150px bold -->
+    <div class="teaching-big-letter" id="teaching-big-letter">A</div>
+
+    <!-- Contextual tip: sounds vs names phrasing -->
+    <div class="teaching-tip" id="teaching-tip">
+      This is the letter A. Can you say A?
+    </div>
+
+    <!-- TTS button — uses browser Speech Synthesis, zero cost -->
+    <button class="btn-listen" id="btn-listen">
+      🔊 Listen to Me
+    </button>
+
+    <button class="btn-try-again" id="btn-try-again">
+      ↩ Try Again
+    </button>
+  </div>
+
+  <!-- ═══════════════════════ LEVEL COMPLETE ═══════════════════════ -->
   <div id="view-complete" class="view">
     <div class="complete-body">
       <div class="trophy">🏆</div>
