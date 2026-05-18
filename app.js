@@ -454,7 +454,7 @@ function fuzzyMatch(transcript, target, levelType) {
    ────────────────────────────────────────────────────────────── */
 var micScored = false;
 
-function scoreTranscript(rec, transcript, isFinal) {
+function scoreTranscript(transcript, isFinal) {
   if (micScored) return;
 
   var target    = pendingTargets[currentIndex].word;
@@ -466,8 +466,7 @@ function scoreTranscript(rec, transcript, isFinal) {
 
   if (matched) {
     micScored = true;
-    clearTimeout(micTimer);
-    rec.stop();
+    micActive = false;
     markCorrect();
     return;
   }
@@ -475,8 +474,7 @@ function scoreTranscript(rec, transcript, isFinal) {
   // Only show wrong feedback on a FINAL result
   if (isFinal) {
     micScored = true;
-    clearTimeout(micTimer);
-    rec.stop();
+    micActive = false;
 
     if (levelType === 'sounds' || levelType === 'names') {
       // Letter levels → rich teaching overlay
@@ -491,23 +489,69 @@ function scoreTranscript(rec, transcript, isFinal) {
 /* ──────────────────────────────────────────────────────────────
    SPEECH RECOGNITION (microphone)
    ────────────────────────────────────────────────────────────── */
-var micActive = false;
-var micTimer  = null;
+var micActive    = false;
+var micScored    = false;
+var _safetyTimer = null;
 
 function micSetActive() {
   micActive = true;
   var btn = document.getElementById('btn-mic');
   btn.classList.add('active');
-  btn.querySelector('.btn-label').textContent = 'Listening… tap to stop';
+  btn.querySelector('.btn-label').textContent = 'Listening... tap to stop';
 }
 
 function micSetIdle() {
   micActive = false;
-  clearTimeout(micTimer);
+  clearTimeout(_safetyTimer);
   var btn = document.getElementById('btn-mic');
   if (!btn) return;
   btn.classList.remove('active');
   btn.querySelector('.btn-label').textContent = 'Tap to Read Aloud';
+}
+
+// One recognition attempt.
+// Uses continuous:false (most reliable on mobile Chrome).
+// Restarts itself on onend until a result arrives or user taps stop.
+function _listenOnce() {
+  if (!micActive || micScored) return;
+  var SR  = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var rec = new SR();
+  rec.lang            = 'en-US';
+  rec.continuous      = false;  // false is most reliable on mobile
+  rec.interimResults  = true;   // capture partial speech for short sounds
+  rec.maxAlternatives = 3;
+
+  rec.onresult = function(e) {
+    if (micScored) return;
+    var latest     = e.results[e.results.length - 1];
+    var transcript = latest[0].transcript.trim().toLowerCase();
+    var isFinal    = latest.isFinal;
+    document.getElementById('transcript-box').textContent = '"' + transcript + '"';
+    scoreTranscript(transcript, isFinal);
+  };
+
+  rec.onerror = function(e) {
+    if (!micActive) return;
+    if (e.error === 'not-allowed') {
+      micActive = false;
+      micSetIdle();
+      document.getElementById('transcript-box').textContent =
+        'Microphone blocked - allow mic access in your browser settings.';
+    }
+    // no-speech / aborted are normal; onend will restart
+  };
+
+  // KEEP-ALIVE: restart on silence so student never has to re-tap
+  // the button just because a short sound ended the session early.
+  rec.onend = function() {
+    if (micActive && !micScored) {
+      setTimeout(_listenOnce, 80);
+    } else if (!micActive) {
+      micSetIdle();
+    }
+  };
+
+  try { rec.start(); } catch(ignore) {}
 }
 
 function startListening() {
@@ -517,129 +561,26 @@ function startListening() {
       'Speech recognition not available. Please use Chrome on Android or desktop Chrome.';
     return;
   }
-
   micScored = false;
-  var rec = new SR();
-  rec.lang            = 'en-US';
-  rec.continuous      = true;    // don't auto-stop; we stop after a result
-  rec.interimResults  = true;    // fire events for partial speech — vital for short sounds
-  rec.maxAlternatives = 1;
-
-  rec.onstart = function() {
-    micSetActive();
-    document.getElementById('transcript-box').innerHTML =
-      '<em>🎙️ Listening — say it now!</em>';
-    micTimer = setTimeout(function() {
-      if (!micScored) {
-        rec.stop();
-        document.getElementById('transcript-box').innerHTML =
-          '<em>Nothing heard — tap the mic and try again.</em>';
-      }
-    }, 8000);
-  };
-
-  rec.onresult = function(e) {
-    var latest     = e.results[e.results.length - 1];
-    var transcript = latest[0].transcript.trim().toLowerCase();
-    var isFinal    = latest.isFinal;
-    scoreTranscript(rec, transcript, isFinal);
-  };
-
-  rec.onerror = function(e) {
-    clearTimeout(micTimer);
-    micSetIdle();
-    if (e.error === 'not-allowed') {
-      document.getElementById('transcript-box').textContent =
-        'Microphone blocked — please allow mic access in your browser settings.';
-    } else if (e.error !== 'no-speech') {
-      document.getElementById('transcript-box').textContent = 'Mic error: ' + e.error;
+  micSetActive();
+  document.getElementById('transcript-box').innerHTML =
+    '<em>Listening - say the sound now!</em>';
+  _safetyTimer = setTimeout(function() {
+    if (!micScored) {
+      micActive = false;
+      micSetIdle();
+      document.getElementById('transcript-box').innerHTML =
+        '<em>Nothing heard - tap the mic and try again.</em>';
     }
-  };
-
-  rec.onend = function() { micSetIdle(); };
-
-  rec.start();
+  }, 30000);
+  _listenOnce();
 }
 
 document.getElementById('btn-mic').addEventListener('click', function() {
-  if (micActive) { micSetIdle(); } else { startListening(); }
-});
-
-/* ──────────────────────────────────────────────────────────────
-   WRITING — Tesseract OCR
-   ────────────────────────────────────────────────────────────── */
-document.getElementById('btn-camera').addEventListener('click', function() {
-  document.getElementById('camera-input').click();
-});
-
-document.getElementById('camera-input').addEventListener('change', async function(e) {
-  var file = e.target.files[0];
-  if (!file) return;
-
-  var reader = new FileReader();
-  reader.onload = function(ev) {
-    document.getElementById('ocr-preview').innerHTML =
-      '<img src="' + ev.target.result + '" alt="Preview" style="max-height:160px;border-radius:8px" />';
-  };
-  reader.readAsDataURL(file);
-
-  document.getElementById('ocr-result-box').innerHTML =
-    '<span class="spinner"></span> Reading your writing...';
-  document.getElementById('btn-camera').disabled = true;
-
-  try {
-    var result  = await Tesseract.recognize(file, 'eng', { logger: function() {} });
-    var ocr     = result.data.text.trim();
-    var cleaned = ocr.replace(/[^a-zA-Z0-9 .,!?']/g, '').trim().toLowerCase();
-    var target  = pendingTargets[currentIndex].word
-                    .replace(/[^a-zA-Z0-9 .,!?']/g, '').trim().toLowerCase();
-
-    document.getElementById('ocr-result-box').textContent = 'Detected: "' + ocr + '"';
-
-    if (cleaned.indexOf(target) !== -1) {
-      markCorrect();
-    } else {
-      showFeedback(false, 'Read: "' + ocr.slice(0, 60) + '". Try again!');
-    }
-  } catch(err) {
-    document.getElementById('ocr-result-box').textContent = 'OCR error: ' + err.message;
-  } finally {
-    document.getElementById('btn-camera').disabled = false;
-    e.target.value = '';
+  if (micActive) {
+    micActive = false;
+    micSetIdle();
+  } else {
+    startListening();
   }
 });
-
-/* ──────────────────────────────────────────────────────────────
-   NAVIGATION
-   ────────────────────────────────────────────────────────────── */
-document.querySelectorAll('.level-card').forEach(function(card) {
-  card.addEventListener('click', function() {
-    openLevel(parseInt(card.dataset.level, 10));
-  });
-});
-
-document.getElementById('btn-back').addEventListener('click', function() {
-  micSetIdle();
-  window.speechSynthesis && window.speechSynthesis.cancel();
-  renderDashboard();
-  showView('dashboard');
-});
-
-document.getElementById('btn-home').addEventListener('click', function() {
-  renderDashboard();
-  showView('dashboard');
-});
-
-document.getElementById('btn-reset-progress').addEventListener('click', function() {
-  if (confirm('Reset ALL progress? This cannot be undone.')) {
-    progress = defaultProgress();
-    saveProgress();
-    renderDashboard();
-  }
-});
-
-/* ──────────────────────────────────────────────────────────────
-   BOOT
-   ────────────────────────────────────────────────────────────── */
-renderDashboard();
-showView('dashboard');
