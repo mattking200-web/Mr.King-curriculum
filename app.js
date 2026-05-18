@@ -584,3 +584,67 @@ document.getElementById('btn-mic').addEventListener('click', function() {
     startListening();
   }
 });
+
+/* ── WRITING — Tesseract OCR ── */
+document.getElementById('btn-camera').addEventListener('click', function() {
+  document.getElementById('camera-input').click();
+});
+
+document.getElementById('camera-input').addEventListener('change', async function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    document.getElementById('ocr-preview').innerHTML =
+      '<img src="' + ev.target.result + '" alt="Preview" style="max-height:160px;border-radius:8px" />';
+  };
+  reader.readAsDataURL(file);
+  document.getElementById('ocr-result-box').innerHTML = '<span class="spinner"></span> Reading your writing...';
+  document.getElementById('btn-camera').disabled = true;
+  try {
+    var result  = await Tesseract.recognize(file, 'eng', { logger: function() {} });
+    var ocr     = result.data.text.trim();
+    var cleaned = ocr.replace(/[^a-zA-Z0-9 .,!?']/g, '').trim().toLowerCase();
+    var target  = pendingTargets[currentIndex].word.replace(/[^a-zA-Z0-9 .,!?']/g, '').trim().toLowerCase();
+    document.getElementById('ocr-result-box').textContent = 'Detected: "' + ocr + '"';
+    if (cleaned.indexOf(target) !== -1) { markCorrect(); }
+    else { showFeedback(false, 'Read: "' + ocr.slice(0, 60) + '". Try again!'); }
+  } catch(err) {
+    document.getElementById('ocr-result-box').textContent = 'OCR error: ' + err.message;
+  } finally {
+    document.getElementById('btn-camera').disabled = false;
+    e.target.value = '';
+  }
+});
+
+/* ── NAVIGATION ── */
+document.querySelectorAll('.level-card').forEach(function(card) {
+  card.addEventListener('click', function() {
+    openLevel(parseInt(card.dataset.level, 10));
+  });
+});
+
+document.getElementById('btn-back').addEventListener('click', function() {
+  micActive = false;
+  micSetIdle();
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  renderDashboard();
+  showView('dashboard');
+});
+
+document.getElementById('btn-home').addEventListener('click', function() {
+  renderDashboard();
+  showView('dashboard');
+});
+
+document.getElementById('btn-reset-progress').addEventListener('click', function() {
+  if (confirm('Reset ALL progress? This cannot be undone.')) {
+    progress = defaultProgress();
+    saveProgress();
+    renderDashboard();
+  }
+});
+
+/* ── BOOT ── */
+renderDashboard();
+showView('dashboard');
